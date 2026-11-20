@@ -96,6 +96,17 @@ dotnet publish src/SonkinDesktopPets -c Release -r win-x64 --self-contained -p:P
 
 Exit the cat first if it is running from that folder, or the file will be locked. The exe is not code-signed, so Windows SmartScreen may warn the first time it is run on another PC.
 
+### Releases
+
+Pushing a version tag makes GitHub Actions run the tests, build the exe and publish a release with it attached:
+
+```
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+A tag with a suffix, such as `v1.1.0-beta.1`, is published as a pre-release. Running the **Release** workflow by hand from the Actions tab builds the exe as a downloadable artifact without making a release.
+
 ### Starting with Windows
 
 Press `Win+R`, run `shell:startup`, and put a shortcut to the exe in the folder that opens.

@@ -1,0 +1,70 @@
+name: Release
+
+# Pushing a tag like v1.2.0 tests the code, builds the standalone exe and publishes a GitHub
+# release with the exe attached. Running the workflow by hand does everything except the
+# release: the exe is kept as a build artifact instead, which is handy for trying it out.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # WinForms: both the tests and the publish need Windows.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          } else {
+            $version = "0.0.0-dev.$env:GITHUB_RUN_NUMBER"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "asset=SonkinDesktopPets-$version-win-x64.exe" >> $env:GITHUB_OUTPUT
+
+      - name: Test
+        run: dotnet test SonkinDesktopPets.slnx -c Release
+
+      - name: Publish
+        run: >
+          dotnet publish src/SonkinDesktopPets -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none
+          -p:Version=${{ steps.version.outputs.version }}
+          -o publish
+
+      - name: Name the exe after the version
+        shell: pwsh
+        run: Move-Item publish/SonkinDesktopPets.exe "publish/${{ steps.version.outputs.asset }}"
+
+      - name: Keep the exe as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SonkinDesktopPets-${{ steps.version.outputs.version }}-win-x64
+          path: publish/${{ steps.version.outputs.asset }}
+          if-no-files-found: error
+
+      - name: Create the release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $options = @('--title', "SonkinDesktopPets ${{ steps.version.outputs.version }}", '--generate-notes', '--verify-tag')
+          # A tag such as v1.2.0-beta.1 is marked as a pre-release.
+          if ('${{ steps.version.outputs.version }}'.Contains('-')) { $options += '--prerelease' }
+          gh release create $env:GITHUB_REF_NAME "publish/${{ steps.version.outputs.asset }}" @options
