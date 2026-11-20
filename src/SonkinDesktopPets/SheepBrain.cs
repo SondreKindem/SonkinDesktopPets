@@ -15,6 +15,7 @@ public enum SheepMode
     Zoomies,
     Startle,
     Flee,
+    Carried,
 }
 
 /// <summary>
@@ -39,6 +40,9 @@ public sealed class SheepBrain
     private float _startleCooldown;
     private int _repeats;
     private int _direction = 1;
+    private float _scareX;
+    private PointF? _cat;
+    private bool _catSwooping;
 
     private PointF _arcFrom, _arcTo;
     private float _arcVx, _arcVy, _arcDuration;
@@ -76,6 +80,51 @@ public sealed class SheepBrain
 
     /// <summary>How many times the sheep has bleated; the host uses it to vary the sound.</summary>
     public int BaaCount { get; private set; }
+
+    /// <summary>True while the current bleat is an answer to the cat's singing.</summary>
+    public bool Smitten { get; private set; }
+
+    /// <summary>The top-centre of the sheep: where the cat takes hold of it.</summary>
+    public PointF Top => new(Position.X, Position.Y - Size.Height);
+
+    private bool Calm => _platform is not null
+        && Mode is SheepMode.Idle or SheepMode.Walk or SheepMode.Graze or SheepMode.Sit or SheepMode.Sleep or SheepMode.Baa;
+
+    /// <summary>
+    /// Tells the sheep where the cat is (its centre), or null if there is no cat about, and
+    /// whether it is flying fast enough to give a sheep a fright.
+    /// </summary>
+    public void SeeCat(PointF? cat, bool swooping)
+    {
+        _cat = cat;
+        _catSwooping = swooping;
+    }
+
+    /// <summary>The cat is singing to this sheep. If it is at leisure, it bleats back.</summary>
+    public void HearSong()
+    {
+        if (!Calm) return;
+        StartBaa();
+        Smitten = true;
+    }
+
+    /// <summary>
+    /// The cat has hold of the sheep by the top of its fleece, at <paramref name="grip"/>.
+    /// Call every frame while it is being carried, then <see cref="Release"/>.
+    /// </summary>
+    public void CarryTo(PointF grip)
+    {
+        if (Mode != SheepMode.Carried) Enter(SheepMode.Carried);
+        _platform = null;
+        if (MathF.Abs(grip.X - Position.X) > 1f) FacingRight = grip.X > Position.X;
+        Position = new PointF(grip.X, grip.Y + Size.Height);
+    }
+
+    /// <summary>Lets go of a carried sheep, which drops onto whatever is below.</summary>
+    public void Release()
+    {
+        if (Mode == SheepMode.Carried) StartFall();
+    }
 
     private float WalkSpeed => Size.Width * 0.7f;
     private float RunSpeed => Size.Width * 4.5f;
@@ -126,8 +175,12 @@ public sealed class SheepBrain
                 break;
 
             case SheepMode.Idle:
-                // Keep an eye on the cursor.
-                if (Bounds.Contains(cursor) && MathF.Abs(cursor.X - Position.X) > Size.Width / 2f)
+                // Keep an eye on the cat if it is close by, otherwise on the cursor.
+                if (_cat is { } near && MathF.Abs(near.X - Position.X) < Size.Width * 8f)
+                {
+                    if (MathF.Abs(near.X - Position.X) > Size.Width / 2f) FacingRight = near.X > Position.X;
+                }
+                else if (Bounds.Contains(cursor) && MathF.Abs(cursor.X - Position.X) > Size.Width / 2f)
                 {
                     FacingRight = cursor.X > Position.X;
                 }
@@ -177,17 +230,35 @@ public sealed class SheepBrain
                 break;
 
             case SheepMode.Startle:
-                if (FlyArc()) StartFlee(cursor);
+                if (FlyArc()) StartFlee();
+                break;
+
+            case SheepMode.Carried:
+                // Dangling from the cat; the host moves it with CarryTo.
                 break;
         }
 
-        bool calm = Mode is SheepMode.Idle or SheepMode.Walk or SheepMode.Graze or SheepMode.Sit or SheepMode.Sleep or SheepMode.Baa;
-        if (calm && _platform is { } ground && _startleCooldown <= 0 && BodyRect.Contains(cursor))
+        if (Calm && _startleCooldown <= 0)
         {
-            // Poked: leap in fright, then run for it.
-            _startleCooldown = StartleCooldown;
-            Launch(SheepMode.Startle, Position, ground, Size.Height * 0.6f);
+            var body = BodyRect;
+            if (body.Contains(cursor))
+            {
+                Spook(cursor.X);
+            }
+            else if (_catSwooping && _cat is { } cat
+                && MathF.Abs(cat.X - Position.X) < Size.Width && MathF.Abs(cat.Y - (body.Top + body.Height / 2f)) < Size.Height)
+            {
+                Spook(cat.X);
+            }
         }
+    }
+
+    /// <summary>Poked, or buzzed by the cat: leap in fright, then run away from where it came from.</summary>
+    private void Spook(float fromX)
+    {
+        _scareX = fromX;
+        _startleCooldown = StartleCooldown;
+        Launch(SheepMode.Startle, Position, _platform!.Value, Size.Height * 0.6f);
     }
 
     private RectangleF BodyRect => new(Position.X - Size.Width / 2f, Position.Y - Size.Height, Size.Width, Size.Height);
@@ -307,6 +378,7 @@ public sealed class SheepBrain
         Enter(SheepMode.Baa);
         _duration = BaaDuration;
         BaaCount++;
+        Smitten = false;
     }
 
     private void StartWalk()
@@ -413,14 +485,14 @@ public sealed class SheepBrain
         _direction = x >= Position.X ? -1 : 1;
     }
 
-    private void StartFlee(Point cursor)
+    private void StartFlee()
     {
         Enter(SheepMode.Flee);
         var (min, max) = Range(_platform!.Value);
         float run = Size.Width * 5f;
-        float away = cursor.X > Position.X ? -1 : 1;
+        float away = _scareX > Position.X ? -1 : 1;
         float x = Math.Clamp(Position.X + away * run, min, max);
-        // Cornered: the only way out is past the cursor.
+        // Cornered: the only way out is past whatever scared it.
         if (MathF.Abs(x - Position.X) < Size.Width * 1.5f) x = Math.Clamp(Position.X - away * run, min, max);
         _targetX = x;
     }

@@ -34,6 +34,17 @@ Sheep walk rather than fly. They stand on the bottom of the screen, on top of th
 - Now and then one of the flock is a **black sheep**.
 - Very rarely (1 in 25) a new sheep is a sparkling **golden sheep**.
 
+## What they do together
+
+When the cat and the sheep are both out:
+
+- **The cat serenades a sheep**: it flies over, hovers just above and sings, and the sheep bleats back with a heart.
+- **The cat carries a sheep off**: it grabs one by the fleece, flies away with it dangling, and lets go. The sheep drops onto whatever is below.
+- **Sheep are spooked** when the cat tears past close by in a dash, loop or wave: they jump and run the other way.
+- **Sheep watch the cat** when it is near, instead of the cursor.
+
+The cat leaves at least 30 seconds between visits to the flock.
+
 There is no sound.
 
 ## Running it

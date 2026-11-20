@@ -16,6 +16,8 @@ internal sealed class NyanContext : ApplicationContext
     private readonly SheepFlock _flock;
     private readonly NotifyIcon _tray;
     private bool _napping;
+    private SheepBrain? _carriedSheep;
+    private bool _catHadSheep;
     private readonly List<NoteForm> _notes = new();
     private readonly System.Windows.Forms.Timer _noteTimer = new() { Interval = 1000 };
     private NoteForm? _noteBeingCollected;
@@ -50,6 +52,8 @@ internal sealed class NyanContext : ApplicationContext
         _flock = new SheepFlock(_rng, settings.Scale, settings.Background);
         _flock.SetArea(bounds, WorkAreas(bounds));
         _flock.SetCount(settings.SheepCount);
+        _overlay.Stepped += IntroduceCatAndSheep;
+        _brain.SheepSerenaded += spot => NearestSheep(spot)?.HearSong();
 
         var menu = new ContextMenuStrip();
         menu.Opening += (_, e) =>
@@ -105,6 +109,59 @@ internal sealed class NyanContext : ApplicationContext
     {
         _overlay.Paused = _napping || !_settings.Cat;
         _flock.Paused = _napping;
+        if (_overlay.Paused)
+        {
+            // With the cat away there is nothing to watch, and nothing holding a sheep up.
+            _carriedSheep?.Release();
+            _carriedSheep = null;
+            _catHadSheep = false;
+            foreach (var sheep in _flock.Brains) sheep.SeeCat(null, false);
+        }
+    }
+
+    /// <summary>
+    /// Runs after every step of the cat: tells each pet where the other is, and moves
+    /// the sheep the cat is carrying, if any.
+    /// </summary>
+    private void IntroduceCatAndSheep()
+    {
+        var spots = new List<PointF>();
+        foreach (var sheep in _flock.Brains)
+        {
+            sheep.SeeCat(_brain.Position, _brain.Swooping);
+            if (sheep.Standing is not null) spots.Add(sheep.Top);
+        }
+
+        _brain.Sheep = spots;
+
+        // The sheep may have been removed from the tray menu in mid-air.
+        if (_carriedSheep is not null && !_flock.Brains.Contains(_carriedSheep)) _carriedSheep = null;
+
+        if (_brain.SheepHold is { } grip)
+        {
+            if (!_catHadSheep) _carriedSheep = NearestSheep(grip);
+            _carriedSheep?.CarryTo(grip);
+            _catHadSheep = true;
+        }
+        else
+        {
+            _carriedSheep?.Release();
+            _carriedSheep = null;
+            _catHadSheep = false;
+        }
+    }
+
+    /// <summary>The sheep standing closest to a spot the cat has singled out, if one is still there.</summary>
+    private SheepBrain? NearestSheep(PointF spot)
+    {
+        float reach = _brain.CatSize.Width;
+        return _flock.Brains
+            .Where(sheep => sheep.Standing is not null)
+            .Select(sheep => (Sheep: sheep, Distance: MathF.Abs(sheep.Top.X - spot.X) + MathF.Abs(sheep.Top.Y - spot.Y)))
+            .Where(candidate => candidate.Distance <= reach)
+            .OrderBy(candidate => candidate.Distance)
+            .Select(candidate => candidate.Sheep)
+            .FirstOrDefault();
     }
 
     private void OnDisplaySettingsChanged(object? sender, EventArgs e) => ApplyArea();

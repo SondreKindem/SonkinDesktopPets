@@ -38,7 +38,11 @@ internal sealed class OverlayForm : PetOverlayForm
     {
         _brain.Update(dt, Cursor.Position);
         if (_brain.CursorGrab is { } grab) Cursor.Position = grab;
+        Stepped?.Invoke();
     }
+
+    /// <summary>Raised each frame once the cat has moved, for anything that has to keep up with it.</summary>
+    public event Action? Stepped;
 
     // Everything below works in screen coordinates.
 

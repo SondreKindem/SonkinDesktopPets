@@ -74,8 +74,9 @@ public class SheepBrainTests
             Assert.True(platform.Spans(brain.Position.X), $"{brain.Mode}: standing at {brain.Position.X}, off the end of {platform}");
         });
 
-        // Being startled and fleeing need the cursor, which stays away in this test.
-        var spontaneous = Enum.GetValues<SheepMode>().Except(new[] { SheepMode.Startle, SheepMode.Flee });
+        // Being startled and fleeing need the cursor or the cat, and being carried needs the cat;
+        // neither comes near in this test.
+        var spontaneous = Enum.GetValues<SheepMode>().Except(new[] { SheepMode.Startle, SheepMode.Flee, SheepMode.Carried });
         Assert.Equal(spontaneous.ToHashSet(), modesSeen);
         Assert.Equal(new HashSet<long> { Ground.Id, Window.Id }, platformsVisited);
     }
@@ -197,6 +198,129 @@ public class SheepBrainTests
         brain.Update(Frame, new Point((int)brain.Position.X, (int)brain.Position.Y - 5));
 
         Assert.NotEqual(SheepMode.Sleep, brain.Mode);
+    }
+
+    [Fact]
+    public void A_sheep_carried_by_the_cat_hangs_from_its_grip_and_drops_onto_what_is_below_when_let_go()
+    {
+        var brain = CreateBrain(1, Ground, Window);
+        SimulateUntilSettledOn(brain, Ground.Id);
+
+        // Carried up and across until it is over the window.
+        var grip = brain.Top;
+        var above = new PointF(2800, 300);
+        for (int i = 1; i <= 60; i++)
+        {
+            var at = new PointF(grip.X + (above.X - grip.X) * i / 60f, grip.Y + (above.Y - grip.Y) * i / 60f);
+            brain.CarryTo(at);
+            brain.Update(Frame, Elsewhere);
+            Assert.Equal(SheepMode.Carried, brain.Mode);
+            Assert.Null(brain.Standing);
+            Assert.Equal(at.X, brain.Top.X, 0.01f);
+            Assert.Equal(at.Y, brain.Top.Y, 0.01f);
+        }
+
+        brain.Release();
+        for (int i = 0; brain.Standing is null; i++)
+        {
+            Assert.True(i < 5 / Frame, "the sheep never landed");
+            brain.Update(Frame, Elsewhere);
+        }
+
+        Assert.Equal(Window.Id, brain.Standing?.Id);
+        Assert.Equal(above.X, brain.Position.X);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Only_a_cat_tearing_past_frightens_a_sheep(bool swooping)
+    {
+        var brain = CreateBrain();
+        SimulateUntilSettledOn(brain, Ground.Id);
+        float start = brain.Position.X;
+        var cat = new PointF(start + 20, Ground.Y - Sheep.Height / 2f);
+        bool startled = false;
+
+        brain.SeeCat(cat, swooping);
+        Simulate(brain, 1.5f, Elsewhere, () => startled |= brain.Mode == SheepMode.Startle);
+
+        Assert.Equal(swooping, startled);
+        // It runs away from the side the cat came at it from.
+        if (swooping) Assert.True(brain.Position.X < start - Sheep.Width, $"the sheep only got from {start} to {brain.Position.X}");
+    }
+
+    [Fact]
+    public void A_cat_swooping_by_at_a_distance_does_not_frighten_a_sheep()
+    {
+        var brain = CreateBrain();
+        SimulateUntilSettledOn(brain, Ground.Id);
+
+        brain.SeeCat(new PointF(brain.Position.X, Ground.Y - Sheep.Height * 4), swooping: true);
+        Simulate(brain, 1.5f, Elsewhere, () => Assert.NotEqual(SheepMode.Startle, brain.Mode));
+    }
+
+    [Fact]
+    public void A_sheep_at_leisure_bleats_back_when_the_cat_sings_to_it()
+    {
+        var brain = CreateBrain();
+        SimulateUntilSettledOn(brain, Ground.Id);
+        int bleatsBefore = brain.BaaCount;
+
+        brain.HearSong();
+
+        Assert.Equal(SheepMode.Baa, brain.Mode);
+        Assert.Equal(bleatsBefore + 1, brain.BaaCount);
+        Assert.True(brain.Smitten);
+    }
+
+    [Fact]
+    public void A_sheep_in_mid_air_has_other_things_on_its_mind_than_the_cats_singing()
+    {
+        var brain = CreateBrain();
+        brain.Update(Frame, Elsewhere);
+        Assert.Equal(SheepMode.Fall, brain.Mode);
+
+        brain.HearSong();
+
+        Assert.Equal(SheepMode.Fall, brain.Mode);
+        Assert.False(brain.Smitten);
+    }
+
+    [Fact]
+    public void An_ordinary_bleat_after_answering_the_cat_is_no_longer_smitten()
+    {
+        var brain = CreateBrain();
+        SimulateUntilSettledOn(brain, Ground.Id);
+        brain.HearSong();
+        int answered = brain.BaaCount;
+
+        for (int i = 0; brain.BaaCount == answered; i++)
+        {
+            Assert.True(i < 3600 / Frame, "the sheep never bleated again");
+            brain.Update(Frame, Elsewhere);
+        }
+
+        Assert.False(brain.Smitten);
+    }
+
+    [Fact]
+    public void An_idle_sheep_turns_to_watch_a_nearby_cat()
+    {
+        var brain = CreateBrain();
+        for (int i = 0; brain.Mode != SheepMode.Idle; i++)
+        {
+            Assert.True(i < 3600 / Frame, "the sheep never stood idle");
+            brain.Update(Frame, Elsewhere);
+        }
+
+        brain.SeeCat(new PointF(brain.Position.X - 200, 500), swooping: false);
+        brain.Update(Frame, Elsewhere);
+        Assert.False(brain.FacingRight);
+
+        brain.SeeCat(new PointF(brain.Position.X + 200, 500), swooping: false);
+        brain.Update(Frame, Elsewhere);
+        Assert.True(brain.FacingRight);
     }
 
     [Fact]

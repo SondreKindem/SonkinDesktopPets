@@ -52,7 +52,7 @@ internal sealed class SheepForm : PetOverlayForm
         float t = _brain.ModeTime;
         return _brain.Mode switch
         {
-            SheepMode.Fall or SheepMode.Jump or SheepMode.Pronk or SheepMode.Startle => SheepPose.Leap,
+            SheepMode.Fall or SheepMode.Jump or SheepMode.Pronk or SheepMode.Startle or SheepMode.Carried => SheepPose.Leap,
             // Landing borrows the lying pose for a moment: it reads as a squash.
             SheepMode.Land or SheepMode.Sit => SheepPose.Sit,
             SheepMode.Sleep => SheepPose.Sleep,
@@ -141,7 +141,7 @@ internal sealed class SheepForm : PetOverlayForm
                 break;
 
             case SheepMode.Baa:
-                DrawBubble(g, BubbleRect(sheep, 22), Bleats[_brain.BaaCount % Bleats.Length], _font!, _scale);
+                DrawBubble(g, BubbleRect(sheep, 22), _brain.Smitten ? "Baa ♥" : Bleats[_brain.BaaCount % Bleats.Length], _font!, _scale);
                 break;
 
             case SheepMode.Startle:

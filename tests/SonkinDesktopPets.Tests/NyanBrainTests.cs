@@ -91,9 +91,107 @@ public class NyanBrainTests
             Assert.True(reachable.Contains(Point.Round(brain.Position)), $"{brain.Mode} took the cat to {brain.Position}");
         });
 
-        // Note collection only happens on request from the host, which this test never makes.
-        var spontaneous = Enum.GetValues<NyanMode>().Except(new[] { NyanMode.CollectNote, NyanMode.RemoveNote });
+        // Note collection only happens on request from the host, which this test never makes,
+        // and with no sheep about there are none to visit.
+        var spontaneous = Enum.GetValues<NyanMode>().Except(new[]
+        {
+            NyanMode.CollectNote, NyanMode.RemoveNote, NyanMode.VisitSheep, NyanMode.CarrySheep,
+        });
         Assert.Equal(spontaneous.ToHashSet(), modesSeen);
+    }
+
+    private static readonly PointF SheepSpot = new(2600, 980);
+
+    private static NyanBrain CreateBrainWithSheep()
+    {
+        var brain = CreateBrain();
+        brain.MischiefEnabled = false;
+        brain.NotesEnabled = false;
+        brain.Sheep = new[] { SheepSpot };
+        return brain;
+    }
+
+    [Fact]
+    public void A_sheep_is_snatched_from_where_it_stands_and_let_go_inside_the_screen()
+    {
+        var brain = CreateBrainWithSheep();
+        var pickups = new List<PointF>();
+        var drops = new List<PointF>();
+        PointF? previous = null;
+
+        Simulate(brain, 1800, OnOtherMonitor, () =>
+        {
+            var hold = brain.SheepHold;
+            if (hold is { } taken && previous is null) pickups.Add(taken);
+            if (hold is null && previous is { } last) drops.Add(last);
+            previous = hold;
+        });
+
+        Assert.NotEmpty(pickups);
+        Assert.All(pickups, grip =>
+        {
+            Assert.InRange(grip.X, SheepSpot.X - 1f, SheepSpot.X + 1f);
+            Assert.InRange(grip.Y, SheepSpot.Y - 1f, SheepSpot.Y + 1f);
+        });
+        Assert.NotEmpty(drops);
+        Assert.All(drops, grip => Assert.True(Monitor.Contains(Point.Round(grip)), $"sheep let go at {grip}, outside {Monitor}"));
+    }
+
+    [Fact]
+    public void The_cat_sings_to_a_sheep_from_just_above_it()
+    {
+        var brain = CreateBrainWithSheep();
+        int serenades = 0;
+        brain.SheepSerenaded += spot =>
+        {
+            serenades++;
+            Assert.Equal(SheepSpot, spot);
+            Assert.Equal(NyanMode.Sing, brain.Mode);
+            Assert.InRange(brain.Position.X, SheepSpot.X - 1f, SheepSpot.X + 1f);
+            Assert.InRange(brain.Position.Y, SheepSpot.Y - Cat.Height * 2, SheepSpot.Y - Cat.Height / 2f);
+        };
+
+        Simulate(brain, 1800, OnOtherMonitor);
+
+        Assert.True(serenades > 0, "the cat never sang to the sheep");
+    }
+
+    [Fact]
+    public void The_cat_gives_the_sheep_some_peace_between_visits()
+    {
+        var brain = CreateBrainWithSheep();
+        var visits = new List<float>();
+        var previous = brain.Mode;
+
+        Simulate(brain, 3600, OnOtherMonitor, () =>
+        {
+            if (brain.Mode == NyanMode.VisitSheep && previous != NyanMode.VisitSheep) visits.Add(brain.Time);
+            previous = brain.Mode;
+        });
+
+        Assert.True(visits.Count >= 5, $"only {visits.Count} visits in an hour");
+        var gaps = visits.Zip(visits.Skip(1), (earlier, later) => later - earlier);
+        Assert.All(gaps, gap => Assert.True(gap >= NyanBrain.SheepCooldown, $"visits only {gap}s apart"));
+    }
+
+    [Fact]
+    public void A_sheep_that_gets_away_before_the_cat_arrives_is_left_alone()
+    {
+        var brain = CreateBrainWithSheep();
+        bool setOff = false, serenaded = false;
+        brain.SheepSerenaded += _ => serenaded = true;
+
+        Simulate(brain, 900, OnOtherMonitor, () =>
+        {
+            Assert.Null(brain.SheepHold);
+            // The sheep leaps away the moment the cat sets off for it.
+            bool coming = brain.Mode == NyanMode.VisitSheep;
+            setOff |= coming;
+            brain.Sheep = coming ? Array.Empty<PointF>() : new[] { SheepSpot };
+        });
+
+        Assert.True(setOff, "the cat never set off for the sheep");
+        Assert.False(serenaded);
     }
 
     [Fact]

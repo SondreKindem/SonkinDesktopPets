@@ -17,6 +17,8 @@ public enum NyanMode
     Sing,
     CollectNote,
     RemoveNote,
+    VisitSheep,
+    CarrySheep,
 }
 
 public readonly record struct TrailSegment(PointF Position, float Born, int Index);
@@ -39,6 +41,12 @@ public sealed class NyanBrain
     /// <summary>Minimum time between two note deliveries.</summary>
     public const float NoteCooldown = 120f;
 
+    /// <summary>Minimum time between two visits to the sheep.</summary>
+    public const float SheepCooldown = 30f;
+
+    private const float FirstSheepDelay = 10f;
+    private const float VisitTimeout = 8f;
+    private const float CarrySheepDuration = 4f;
     private const float FirstNoteDelay = 45f;
     private const float LoopSpeed = 420f;
     private const float WaveSpeed = 340f;
@@ -87,6 +95,9 @@ public sealed class NyanBrain
     private PointF _waveStart;
     private float _waveBaseY;
     private float _waveEndX;
+    private float _sheepCooldown = FirstSheepDelay;
+    private PointF _sheepSpot;
+    private bool _abducting;
 
     public NyanBrain(Random rng, Size catSize, Rectangle bounds, IReadOnlyList<Rectangle>? regions = null)
     {
@@ -146,6 +157,24 @@ public sealed class NyanBrain
     public event Action<Point>? NoteDropped;
 
     /// <summary>
+    /// Set by the host every frame: the top-centre of each sheep that is standing around
+    /// where the cat could get at it. Now and then the cat pays one of them a visit.
+    /// </summary>
+    public IReadOnlyList<PointF> Sheep { get; set; } = Array.Empty<PointF>();
+
+    /// <summary>
+    /// Where the host must hang the sheep the cat has snatched this frame (by the top of its
+    /// fleece), or null if the cat is not carrying one. The sheep is let go when this clears.
+    /// </summary>
+    public PointF? SheepHold { get; private set; }
+
+    /// <summary>Raised with a sheep's spot when the cat stops above it to sing to it.</summary>
+    public event Action<PointF>? SheepSerenaded;
+
+    /// <summary>True while the cat is tearing about fast enough to frighten a sheep it passes.</summary>
+    public bool Swooping => Mode is NyanMode.Dash or NyanMode.Wave or NyanMode.Loop or NyanMode.Flee;
+
+    /// <summary>
     /// Confines the cat to <paramref name="bounds"/>. <paramref name="regions"/> are the
     /// visible parts of it (the monitors); destinations are only picked inside those.
     /// </summary>
@@ -157,6 +186,7 @@ public sealed class NyanBrain
         _stars.Clear();
         _crumbs.Clear();
         CursorGrab = null;
+        SheepHold = null;
         Position = ClampInside(Position);
         StartRoam();
     }
@@ -168,7 +198,9 @@ public sealed class NyanBrain
         _mischiefCooldown = MathF.Max(0, _mischiefCooldown - dt);
         _fleeCooldown = MathF.Max(0, _fleeCooldown - dt);
         _noteCooldown = MathF.Max(0, _noteCooldown - dt);
+        _sheepCooldown = MathF.Max(0, _sheepCooldown - dt);
         CursorGrab = null;
+        SheepHold = null;
 
         switch (Mode)
         {
@@ -275,6 +307,39 @@ public sealed class NyanBrain
 
             case NyanMode.RemoveNote:
                 if (MoveToward(_target, FetchSpeed, dt)) StartRoam();
+                break;
+
+            case NyanMode.VisitSheep:
+                if (!TrackSheep() || _modeTime > VisitTimeout)
+                {
+                    // It wandered off, jumped away or was put away before the cat got there.
+                    StartRoam();
+                    break;
+                }
+
+                // Close enough to grab it by the fleece, or a polite distance above to sing.
+                float height = CatSize.Height * (_abducting ? 0.45f : 1.1f);
+                if (!MoveToward(new PointF(_sheepSpot.X, _sheepSpot.Y - height), ChaseSpeed, dt)) break;
+
+                _sheepCooldown = SheepCooldown;
+                if (_abducting)
+                {
+                    Enter(NyanMode.CarrySheep);
+                    _target = RandomPoint();
+                    SheepHold = Grip;
+                }
+                else
+                {
+                    StartSing();
+                    SheepSerenaded?.Invoke(_sheepSpot);
+                }
+
+                break;
+
+            case NyanMode.CarrySheep:
+                // Reaching the spot, or tiring of it, lets the sheep go: it falls from there.
+                if (MoveToward(_target, CarrySpeed, dt) || _modeTime > CarrySheepDuration) StartHover(1f);
+                else SheepHold = Grip;
                 break;
         }
 
@@ -409,6 +474,42 @@ public sealed class NyanBrain
         Position.X + (FacingRight ? 1 : -1) * CatSize.Width * 0.45f,
         Position.Y + CatSize.Height * 0.15f);
 
+    /// <summary>Where a carried sheep hangs from: just inside the bottom of the cat.</summary>
+    private PointF Grip => new(Position.X, Position.Y + CatSize.Height * 0.45f);
+
+    private void StartSheepVisit()
+    {
+        var within = Sheep.Where(spot => Bounds.Contains(Point.Round(spot))).ToArray();
+        if (within.Length == 0)
+        {
+            StartRoam();
+            return;
+        }
+
+        Enter(NyanMode.VisitSheep);
+        _sheepSpot = within[_rng.Next(within.Length)];
+        _abducting = _rng.Next(2) == 0;
+    }
+
+    /// <summary>
+    /// Keeps following the sheep the cat set off for as it moves. False once there is no
+    /// sheep anywhere near where it last was.
+    /// </summary>
+    private bool TrackSheep()
+    {
+        float nearest = CatSize.Width * 2f;
+        bool found = false;
+        var last = _sheepSpot;
+        foreach (var spot in Sheep)
+        {
+            float distance = Distance(spot, last);
+            if (distance > nearest) continue;
+            (nearest, found, _sheepSpot) = (distance, true, spot);
+        }
+
+        return found;
+    }
+
     /// <summary>A point just off the nearer side edge, at the cat's current height.</summary>
     private PointF NearestExit()
     {
@@ -499,6 +600,10 @@ public sealed class NyanBrain
         else if (roll < 0.75)
         {
             StartHover(0.8f + (float)_rng.NextDouble() * 1.7f);
+        }
+        else if (roll < 0.87 && Sheep.Count > 0 && _sheepCooldown <= 0)
+        {
+            StartSheepVisit();
         }
         else
         {

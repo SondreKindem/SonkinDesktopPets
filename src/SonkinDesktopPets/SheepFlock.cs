@@ -30,6 +30,8 @@ internal sealed class SheepFlock : IDisposable
 
     public int Count => _sheep.Count;
 
+    public IEnumerable<SheepBrain> Brains => _sheep.Select(sheep => sheep.Brain);
+
     public bool Background
     {
         set
