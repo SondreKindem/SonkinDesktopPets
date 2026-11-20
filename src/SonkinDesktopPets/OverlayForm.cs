@@ -4,7 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 
-namespace DesktopNyan;
+namespace SonkinDesktopPets;
 
 /// <summary>
 /// A borderless, always-on-top, click-through window. Each frame it is moved and resized to

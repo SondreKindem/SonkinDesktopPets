@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DesktopNyan\DesktopNyan.csproj" />
+    <ProjectReference Include="..\..\src\SonkinDesktopPets\SonkinDesktopPets.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace DesktopNyan;
+namespace SonkinDesktopPets;
 
 /// <summary>Owns the overlay, the tray icon and the notes, and wires the brain to the real desktop.</summary>
 internal sealed class NyanContext : ApplicationContext
@@ -53,7 +53,7 @@ internal sealed class NyanContext : ApplicationContext
         _tray = new NotifyIcon
         {
             Icon = Sprites.BuildIcon(),
-            Text = "desktopNyan",
+            Text = "SonkinDesktopPets",
             ContextMenuStrip = menu,
             Visible = true,
         };

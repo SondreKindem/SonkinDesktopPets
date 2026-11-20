@@ -1,4 +1,4 @@
-namespace DesktopNyan;
+namespace SonkinDesktopPets;
 
 /// <summary>A little note the cat leaves on the desktop. The user closes it when they've had enough.</summary>
 internal sealed class NoteForm : Form

@@ -1,4 +1,4 @@
-namespace DesktopNyan;
+namespace SonkinDesktopPets;
 
 public enum NyanMode
 {

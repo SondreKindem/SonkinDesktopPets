@@ -1,6 +1,6 @@
 using System.Drawing.Imaging;
 
-namespace DesktopNyan;
+namespace SonkinDesktopPets;
 
 internal static class Program
 {
@@ -9,7 +9,7 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
 
-        // Developer aid: DesktopNyan --dump-sprites out.png writes the animation frames to a file.
+        // Developer aid: SonkinDesktopPets --dump-sprites out.png writes the animation frames to a file.
         int dump = Array.IndexOf(args, "--dump-sprites");
         if (dump >= 0 && dump + 1 < args.Length)
         {
@@ -17,7 +17,7 @@ internal static class Program
             return;
         }
 
-        using var mutex = new Mutex(true, "DesktopNyan.SingleInstance", out bool isFirstInstance);
+        using var mutex = new Mutex(true, "SonkinDesktopPets.SingleInstance", out bool isFirstInstance);
         if (!isFirstInstance) return;
 
         var settings = Settings.Load();
@@ -45,7 +45,7 @@ internal static class Program
         else
         {
             string available = string.Join(", ", Screen.AllScreens.Select(NyanContext.ScreenNumber).Order());
-            MessageBox.Show($"There is no display \"{value}\". Available: {available}, or \"all\".", "desktopNyan");
+            MessageBox.Show($"There is no display \"{value}\". Available: {available}, or \"all\".", "SonkinDesktopPets");
             return;
         }
 

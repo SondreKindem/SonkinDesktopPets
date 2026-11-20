@@ -1,6 +1,6 @@
 using System.Drawing.Imaging;
 
-namespace DesktopNyan;
+namespace SonkinDesktopPets;
 
 /// <summary>Hand-drawn pixel art, generated in code so the app ships no image files.</summary>
 internal static class Sprites

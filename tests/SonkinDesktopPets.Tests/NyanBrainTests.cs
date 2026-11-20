@@ -1,7 +1,7 @@
 using System.Drawing;
 using Xunit;
 
-namespace DesktopNyan.Tests;
+namespace SonkinDesktopPets.Tests;
 
 public class NyanBrainTests
 {

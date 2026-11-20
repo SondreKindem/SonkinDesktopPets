@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace DesktopNyan;
+namespace SonkinDesktopPets;
 
 /// <summary>Keeps windows at the bottom of the window stack, just above the desktop.</summary>
 internal static class WindowStack

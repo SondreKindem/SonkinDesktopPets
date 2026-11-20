@@ -1,12 +1,12 @@
 using System.Text.Json;
 
-namespace DesktopNyan;
+namespace SonkinDesktopPets;
 
 internal sealed class Settings
 {
     private static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "desktopNyan",
+        "SonkinDesktopPets",
         "settings.json");
 
     /// <summary>Device name of the screen the cat is confined to, or null to roam every screen.</summary>
