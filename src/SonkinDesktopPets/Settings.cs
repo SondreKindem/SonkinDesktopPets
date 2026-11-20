@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SonkinDesktopPets;
 
@@ -26,6 +27,10 @@ internal sealed class Settings
 
     public int SheepCount { get; set; } = 1;
 
+    /// <summary>The landscape drawn along the bottom of the screen, if any.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public Scene Scene { get; set; } = Scene.None;
+
     public static Settings Load()
     {
         try
@@ -37,6 +42,7 @@ internal sealed class Settings
                 {
                     loaded.Scale = Math.Clamp(loaded.Scale, 2, 8);
                     loaded.SheepCount = Math.Clamp(loaded.SheepCount, 0, SheepFlock.MaxSheep);
+                    if (!Enum.IsDefined(loaded.Scene)) loaded.Scene = Scene.None;
                     return loaded;
                 }
             }

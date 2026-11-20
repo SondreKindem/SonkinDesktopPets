@@ -20,7 +20,7 @@ internal abstract class PetOverlayForm : Form
     private const int WS_EX_LAYERED = 0x80000;
     private const int WS_EX_NOACTIVATE = 0x8000000;
 
-    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 15 };
+    private readonly System.Windows.Forms.Timer _timer = new();
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly Surface _surface = new();
     private readonly StringFormat _centred = new() { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
@@ -29,9 +29,11 @@ internal abstract class PetOverlayForm : Form
     private double _lastSentToBottom;
     private double _lastTick;
 
-    protected PetOverlayForm(bool background)
+    /// <param name="interval">Milliseconds between frames.</param>
+    protected PetOverlayForm(bool background, int interval = 15)
     {
         _background = background;
+        _timer.Interval = interval;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
@@ -148,7 +150,8 @@ internal abstract class PetOverlayForm : Form
     {
         var bounds = Rectangle.Intersect(ContentBounds(), _area);
         // Nothing visible (e.g. off the edge of the screen): keep a single transparent pixel.
-        if (bounds.IsEmpty) bounds = new Rectangle(_area.Location, new Size(1, 1));
+        // Rectangles that only touch intersect in a sliver with no width or no height.
+        if (bounds.Width <= 0 || bounds.Height <= 0) bounds =new Rectangle(_area.Location, new Size(1, 1));
 
         var g = _surface.Begin(bounds.Size);
         g.TranslateTransform(-bounds.X, -bounds.Y);

@@ -45,6 +45,12 @@ When the cat and the sheep are both out:
 
 The cat leaves at least 30 seconds between visits to the flock.
 
+## Scenery
+
+Pick a pixel-art landscape under **Scenery** in the tray menu and it is drawn along the bottom of each screen, sitting on the taskbar: a **meadow**, a **forest**, **mountains** or a **beach**. It is off to begin with.
+
+The scenery always stays behind your windows, just above the wallpaper, so it only shows where the desktop does. Like the pets it is click-through, but it does cover any desktop icons in the bottom rows. Each screen gets its own stretch of landscape, which stays the same from one day to the next.
+
 There is no sound.
 
 ## Running it
@@ -67,6 +73,7 @@ Right-click the tray icon:
 | Sheep | Add or remove sheep, up to 12 at a time |
 | Screen | Let the pets roam all screens, or confine them to one display |
 | Size | Tiny, Small, Medium or Large |
+| Scenery | None, Meadow, Forest, Mountains or Beach along the bottom of the screen |
 | Stay behind windows | Stay behind every other window, just above the wallpaper, instead of on top. Notes follow the same layer |
 | Steal my cursor | Turn the cat's cursor stealing on or off |
 | Deliver notes | Turn the cat's note deliveries on or off |
@@ -124,6 +131,8 @@ Press `Win+R`, run `shell:startup`, and put a shortcut to the exe in the folder 
 | `src/SonkinDesktopPets/DesktopWindows.cs` | Lists the real windows on the desktop |
 | `src/SonkinDesktopPets/SheepForm.cs`, `SheepSprites.cs` | A sheep's overlay window, drawing and pixel art |
 | `src/SonkinDesktopPets/SheepFlock.cs` | Creates and removes sheep, and shares one window scan between them |
+| `src/SonkinDesktopPets/Scenery.cs` | The landscapes, generated in code from a seed |
+| `src/SonkinDesktopPets/SceneryForm.cs` | The windows that show a landscape on each screen |
 | `src/SonkinDesktopPets/PetOverlayForm.cs` | The click-through, per-pixel-alpha window every pet draws into |
 | `src/SonkinDesktopPets/NyanContext.cs` | Tray menu, settings, and the glue between the brains and the desktop |
 | `tests/SonkinDesktopPets.Tests` | Behaviour tests for the brains and the platform finder |

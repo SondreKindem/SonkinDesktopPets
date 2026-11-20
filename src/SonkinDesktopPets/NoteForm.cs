@@ -84,5 +84,7 @@ internal sealed class NoteForm : Form
         // Showing, clicking or dragging a window normally raises it; a background note stays put.
         if (_background && m.Msg == WindowStack.WM_WINDOWPOSCHANGING) WindowStack.ForceBottom(ref m);
         base.WndProc(ref m);
+        // Landing on the very bottom puts the note under the scenery; slide that back beneath it.
+        if (_background && m.Msg == WindowStack.WM_WINDOWPOSCHANGED) WindowStack.SinkFloor(Handle);
     }
 }

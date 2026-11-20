@@ -17,7 +17,15 @@ internal static class Program
             return;
         }
 
-        using var mutex = new Mutex(true, "SonkinDesktopPets.SingleInstance", out bool isFirstInstance);
+        // And --dump-scenery out.png writes every landscape, one above the other.
+        dump = Array.IndexOf(args, "--dump-scenery");
+        if (dump >= 0 && dump + 1 < args.Length)
+        {
+            DumpScenery(args[dump + 1]);
+            return;
+        }
+
+        using var mutex =new Mutex(true, "SonkinDesktopPets.SingleInstance", out bool isFirstInstance);
         if (!isFirstInstance) return;
 
         var settings = Settings.Load();
@@ -50,6 +58,28 @@ internal static class Program
         }
 
         settings.Save();
+    }
+
+    private static void DumpScenery(string path)
+    {
+        const int scale = 3, width = 1920;
+        var scenes = Scenery.Choices.Select(choice => choice.Scene).Where(scene => scene != Scene.None).ToArray();
+        int row = Scenery.Height * scale + 40;
+        using var sheet = new Bitmap(width, row * scenes.Length, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(sheet))
+        {
+            g.Clear(Color.FromArgb(0, 51, 102));
+            for (int i = 0; i < scenes.Length; i++)
+            {
+                using var picture = Scenery.Build(scenes[i], width, scale, seed: i);
+                g.DrawImageUnscaled(picture, 0, i * row + 40);
+            }
+
+            // A sheep for a sense of size.
+            g.DrawImageUnscaled(SheepSprites.BuildPoses(scale, false, SheepCoat.White)[0], 200, row - SheepSprites.Height * scale);
+        }
+
+        sheet.Save(path, ImageFormat.Png);
     }
 
     private static void DumpSprites(string path)

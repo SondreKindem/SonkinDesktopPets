@@ -14,6 +14,7 @@ internal sealed class NyanContext : ApplicationContext
     private readonly NyanBrain _brain;
     private readonly OverlayForm _overlay;
     private readonly SheepFlock _flock;
+    private readonly Backdrop _backdrop = new();
     private readonly NotifyIcon _tray;
     private bool _napping;
     private SheepBrain? _carriedSheep;
@@ -52,6 +53,7 @@ internal sealed class NyanContext : ApplicationContext
         _flock = new SheepFlock(_rng, settings.Scale, settings.Background);
         _flock.SetArea(bounds, WorkAreas(bounds));
         _flock.SetCount(settings.SheepCount);
+        _backdrop.Set(settings.Scene, WorkAreas(bounds), settings.Scale);
         _overlay.Stepped += IntroduceCatAndSheep;
         _brain.SheepSerenaded += spot => NearestSheep(spot)?.HearSong();
 
@@ -90,12 +92,17 @@ internal sealed class NyanContext : ApplicationContext
         _brain.SetArea(bounds, regions);
         _overlay.SetArea(bounds);
         _flock.SetArea(bounds, WorkAreas(bounds));
+        ApplyScene();
     }
+
+    private void ApplyScene() =>
+        _backdrop.Set(_settings.Scene, WorkAreas(ResolveArea().Bounds), _settings.Scale);
 
     /// <summary>The part of each screen inside <paramref name="bounds"/> that the taskbar leaves free.</summary>
     private static Rectangle[] WorkAreas(Rectangle bounds) => Screen.AllScreens
         .Select(s => Rectangle.Intersect(s.WorkingArea, bounds))
-        .Where(area => !area.IsEmpty)
+        // A neighbouring screen that only touches the bounds leaves a sliver with no width or height.
+        .Where(area => area.Width > 0 && area.Height > 0)
         .ToArray();
 
     private void ChooseSheepCount(int count)
@@ -220,6 +227,20 @@ internal sealed class NyanContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(screens);
         menu.Items.Add(sizes);
+
+        var scenes = new ToolStripMenuItem("Scenery");
+        foreach (var (scene, label) in Scenery.Choices)
+        {
+            scenes.DropDownItems.Add(new ToolStripMenuItem(label, null, (_, _) =>
+            {
+                _settings.Scene = scene;
+                _settings.Save();
+                ApplyScene();
+            })
+            { Checked = scene == _settings.Scene });
+        }
+
+        menu.Items.Add(scenes);
         menu.Items.Add(new ToolStripMenuItem("Stay behind windows", null, (_, _) =>
         {
             _settings.Background = _overlay.Background = !_settings.Background;
@@ -264,6 +285,7 @@ internal sealed class NyanContext : ApplicationContext
         _settings.Save();
         _overlay.SetScale(scale);
         _flock.SetScale(scale);
+        ApplyScene();
     }
 
     private void OnNoteDropped(Point dropPoint)
@@ -325,6 +347,7 @@ internal sealed class NyanContext : ApplicationContext
             foreach (var note in _notes.ToArray()) note.Dispose();
             _overlay.Dispose();
             _flock.Dispose();
+            _backdrop.Dispose();
         }
 
         base.Dispose(disposing);
