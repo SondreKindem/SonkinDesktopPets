@@ -1,10 +1,10 @@
 # SonkinDesktopPets
 
-A desktop pet for Windows: a pixel-art pop-tart cat that flies around your screen trailing a rainbow and getting up to mischief. Inspired by Desktop Goose.
+Desktop pets for Windows: a pixel-art pop-tart cat that flies around your screen trailing a rainbow and getting up to mischief, and a flock of sheep that graze along the taskbar and climb on your windows. Inspired by Desktop Goose.
 
-The cat lives in a transparent, click-through window, so it never gets in the way of what you are clicking on.
+The pets live in transparent, click-through windows, so they never get in the way of what you are clicking on.
 
-## What it does
+## What the cat does
 
 - **Flies with a rainbow** between random spots, with twinkling stars in its wake.
 - **Dashes** off one edge of the screen and streaks back in from the other.
@@ -16,6 +16,24 @@ The cat lives in a transparent, click-through window, so it never gets in the wa
 - **Sheds pastry crumbs** that fall down the screen.
 - **Bolts** when you touch it with the cursor.
 
+## What the sheep do
+
+Sheep walk rather than fly. They stand on the bottom of the screen, on top of the taskbar, and on the top edges of windows that are not maximized.
+
+- **Drop in** from above the screen when they arrive, landing on whatever is below.
+- **Graze** along the bottom of the screen, nibbling a tuft of grass.
+- **Wander** back and forth along whatever they are standing on.
+- **Leap** up onto windows, across to other windows and back down again.
+- **Sit down** on a window to enjoy the view, and sometimes **doze off**.
+- **Ride along** when you drag the window they are on, and **tumble off** when it is closed, minimized, maximized or covered by another window.
+- **Bleat**, with a speech bubble.
+- **Pronk**: a string of bouncy hops, as lambs do.
+- **Get the zoomies** and tear back and forth.
+- **Jump in fright** and run away when you poke them with the cursor, which also wakes a sleeping sheep.
+- **Watch the cursor** while standing around.
+- Now and then one of the flock is a **black sheep**.
+- Very rarely (1 in 25) a new sheep is a sparkling **golden sheep**.
+
 There is no sound.
 
 ## Running it
@@ -26,7 +44,7 @@ You need the [.NET 10 SDK](https://dotnet.microsoft.com/download) and Windows.
 dotnet run --project src/SonkinDesktopPets -c Release
 ```
 
-The cat appears straight away and an icon is added to the system tray. Only one copy runs at a time.
+The cat and one sheep appear straight away and an icon is added to the system tray. Only one copy runs at a time.
 
 ## Options
 
@@ -34,12 +52,14 @@ Right-click the tray icon:
 
 | Option | What it does |
 | --- | --- |
-| Screen | Let the cat roam all screens, or confine it to one display |
+| Nyan cat | Show or hide the cat |
+| Sheep | Add or remove sheep, up to 12 at a time |
+| Screen | Let the pets roam all screens, or confine them to one display |
 | Size | Tiny, Small, Medium or Large |
-| Stay behind windows | Fly behind every other window, just above the wallpaper, instead of on top. Notes follow the same layer |
-| Steal my cursor | Turn cursor stealing on or off |
-| Deliver notes | Turn note deliveries on or off |
-| Nap (pause) | Hide the cat until you wake it |
+| Stay behind windows | Stay behind every other window, just above the wallpaper, instead of on top. Notes follow the same layer |
+| Steal my cursor | Turn the cat's cursor stealing on or off |
+| Deliver notes | Turn the cat's note deliveries on or off |
+| Nap (pause) | Hide all the pets until you wake them |
 | Exit | Quit |
 
 Choices are saved to `%AppData%\SonkinDesktopPets\settings.json`.
@@ -74,11 +94,17 @@ Press `Win+R`, run `shell:startup`, and put a shortcut to the exe in the folder 
 | Path | Contents |
 | --- | --- |
 | `src/SonkinDesktopPets/NyanBrain.cs` | The cat's behaviour. Pure logic in screen coordinates, with no windows or real mouse involved |
-| `src/SonkinDesktopPets/OverlayForm.cs` | The overlay window and all drawing |
-| `src/SonkinDesktopPets/Sprites.cs` | The pixel art, generated in code; the app ships no image files |
+| `src/SonkinDesktopPets/OverlayForm.cs` | The cat's overlay window and its drawing |
+| `src/SonkinDesktopPets/Sprites.cs` | The cat's pixel art, generated in code; the app ships no image files |
 | `src/SonkinDesktopPets/NoteForm.cs` | The note windows and their messages |
-| `src/SonkinDesktopPets/NyanContext.cs` | Tray menu, settings, and the glue between the brain and the desktop |
-| `tests/SonkinDesktopPets.Tests` | Behaviour tests for the brain |
+| `src/SonkinDesktopPets/SheepBrain.cs` | A sheep's behaviour. Pure logic again: it is told what there is to stand on |
+| `src/SonkinDesktopPets/Platforms.cs` | Works out which window edges a sheep can stand on |
+| `src/SonkinDesktopPets/DesktopWindows.cs` | Lists the real windows on the desktop |
+| `src/SonkinDesktopPets/SheepForm.cs`, `SheepSprites.cs` | A sheep's overlay window, drawing and pixel art |
+| `src/SonkinDesktopPets/SheepFlock.cs` | Creates and removes sheep, and shares one window scan between them |
+| `src/SonkinDesktopPets/PetOverlayForm.cs` | The click-through, per-pixel-alpha window every pet draws into |
+| `src/SonkinDesktopPets/NyanContext.cs` | Tray menu, settings, and the glue between the brains and the desktop |
+| `tests/SonkinDesktopPets.Tests` | Behaviour tests for the brains and the platform finder |
 
 Run the tests with:
 

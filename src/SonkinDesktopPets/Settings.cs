@@ -21,6 +21,11 @@ internal sealed class Settings
     /// <summary>True to fly behind every window, just above the wallpaper, instead of on top.</summary>
     public bool Background { get; set; }
 
+    /// <summary>Whether the cat is out.</summary>
+    public bool Cat { get; set; } = true;
+
+    public int SheepCount { get; set; } = 1;
+
     public static Settings Load()
     {
         try
@@ -31,6 +36,7 @@ internal sealed class Settings
                 if (loaded is not null)
                 {
                     loaded.Scale = Math.Clamp(loaded.Scale, 2, 8);
+                    loaded.SheepCount = Math.Clamp(loaded.SheepCount, 0, SheepFlock.MaxSheep);
                     return loaded;
                 }
             }

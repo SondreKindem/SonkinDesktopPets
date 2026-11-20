@@ -13,7 +13,9 @@ internal sealed class NyanContext : ApplicationContext
     private readonly Random _rng = new();
     private readonly NyanBrain _brain;
     private readonly OverlayForm _overlay;
+    private readonly SheepFlock _flock;
     private readonly NotifyIcon _tray;
+    private bool _napping;
     private readonly List<NoteForm> _notes = new();
     private readonly System.Windows.Forms.Timer _noteTimer = new() { Interval = 1000 };
     private NoteForm? _noteBeingCollected;
@@ -42,7 +44,12 @@ internal sealed class NyanContext : ApplicationContext
 
         _overlay = new OverlayForm(_brain, settings.Scale, settings.Background);
         _overlay.SetArea(bounds);
-        _overlay.Show();
+        if (settings.Cat) _overlay.Show();
+        else _overlay.Paused = true;
+
+        _flock = new SheepFlock(_rng, settings.Scale, settings.Background);
+        _flock.SetArea(bounds, WorkAreas(bounds));
+        _flock.SetCount(settings.SheepCount);
 
         var menu = new ContextMenuStrip();
         menu.Opening += (_, e) =>
@@ -78,6 +85,26 @@ internal sealed class NyanContext : ApplicationContext
         var (bounds, regions) = ResolveArea();
         _brain.SetArea(bounds, regions);
         _overlay.SetArea(bounds);
+        _flock.SetArea(bounds, WorkAreas(bounds));
+    }
+
+    /// <summary>The part of each screen inside <paramref name="bounds"/> that the taskbar leaves free.</summary>
+    private static Rectangle[] WorkAreas(Rectangle bounds) => Screen.AllScreens
+        .Select(s => Rectangle.Intersect(s.WorkingArea, bounds))
+        .Where(area => !area.IsEmpty)
+        .ToArray();
+
+    private void ChooseSheepCount(int count)
+    {
+        _flock.SetCount(count);
+        _settings.SheepCount = _flock.Count;
+        _settings.Save();
+    }
+
+    private void ApplyPause()
+    {
+        _overlay.Paused = _napping || !_settings.Cat;
+        _flock.Paused = _napping;
     }
 
     private void OnDisplaySettingsChanged(object? sender, EventArgs e) => ApplyArea();
@@ -111,11 +138,35 @@ internal sealed class NyanContext : ApplicationContext
             });
         }
 
+        var sheep = new ToolStripMenuItem($"Sheep ({_flock.Count})");
+        sheep.DropDownItems.Add(new ToolStripMenuItem("Add a sheep", null, (_, _) => ChooseSheepCount(_flock.Count + 1))
+        {
+            Enabled = _flock.Count < SheepFlock.MaxSheep,
+        });
+        sheep.DropDownItems.Add(new ToolStripMenuItem("Remove a sheep", null, (_, _) => ChooseSheepCount(_flock.Count - 1))
+        {
+            Enabled = _flock.Count > 0,
+        });
+        sheep.DropDownItems.Add(new ToolStripMenuItem("Remove all sheep", null, (_, _) => ChooseSheepCount(0))
+        {
+            Enabled = _flock.Count > 0,
+        });
+
+        menu.Items.Add(new ToolStripMenuItem("Nyan cat", null, (_, _) =>
+        {
+            _settings.Cat = !_settings.Cat;
+            _settings.Save();
+            ApplyPause();
+        })
+        { Checked = _settings.Cat });
+        menu.Items.Add(sheep);
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(screens);
         menu.Items.Add(sizes);
         menu.Items.Add(new ToolStripMenuItem("Stay behind windows", null, (_, _) =>
         {
             _settings.Background = _overlay.Background = !_settings.Background;
+            _flock.Background = _settings.Background;
             foreach (var note in _notes) note.Background = _settings.Background;
             _settings.Save();
         })
@@ -133,10 +184,12 @@ internal sealed class NyanContext : ApplicationContext
             _settings.Save();
         })
         { Checked = _settings.Notes });
-        menu.Items.Add(new ToolStripMenuItem("Nap (pause)", null, (_, _) => _overlay.Paused = !_overlay.Paused)
+        menu.Items.Add(new ToolStripMenuItem("Nap (pause)", null, (_, _) =>
         {
-            Checked = _overlay.Paused,
-        });
+            _napping = !_napping;
+            ApplyPause();
+        })
+        { Checked = _napping });
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Exit", null, (_, _) => ExitThread()));
     }
@@ -153,6 +206,7 @@ internal sealed class NyanContext : ApplicationContext
         _settings.Scale = scale;
         _settings.Save();
         _overlay.SetScale(scale);
+        _flock.SetScale(scale);
     }
 
     private void OnNoteDropped(Point dropPoint)
@@ -213,6 +267,7 @@ internal sealed class NyanContext : ApplicationContext
             _tray.Dispose();
             foreach (var note in _notes.ToArray()) note.Dispose();
             _overlay.Dispose();
+            _flock.Dispose();
         }
 
         base.Dispose(disposing);

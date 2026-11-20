@@ -58,10 +58,29 @@ internal static class Program
         var right = Sprites.BuildFrames(scale, facingLeft: false);
         var left = Sprites.BuildFrames(scale, facingLeft: true);
         var cell = Sprites.SizeAt(scale);
-        using var sheet = new Bitmap(cell.Width * 3, cell.Height * 4, PixelFormat.Format32bppArgb);
+        var sheepCell = SheepSprites.SizeAt(scale);
+        var flocks = new[]
+        {
+            SheepSprites.BuildPoses(scale, facingLeft: false, SheepCoat.White),
+            SheepSprites.BuildPoses(scale, facingLeft: true, SheepCoat.White),
+            SheepSprites.BuildPoses(scale, facingLeft: false, SheepCoat.Black),
+            SheepSprites.BuildPoses(scale, facingLeft: false, SheepCoat.Golden),
+        };
+        using var sheet = new Bitmap(
+            Math.Max(cell.Width * 3, sheepCell.Width * flocks[0].Length),
+            cell.Height * 4 + sheepCell.Height * flocks.Length,
+            PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(sheet))
         {
             g.Clear(Color.FromArgb(0, 51, 102));
+            for (int row = 0; row < flocks.Length; row++)
+            {
+                for (int i = 0; i < flocks[row].Length; i++)
+                {
+                    g.DrawImageUnscaled(flocks[row][i], i * sheepCell.Width, cell.Height * 4 + row * sheepCell.Height);
+                }
+            }
+
             for (int i = 0; i < Sprites.FrameCount; i++)
             {
                 g.DrawImageUnscaled(right[i], i % 3 * cell.Width, i / 3 * cell.Height);
