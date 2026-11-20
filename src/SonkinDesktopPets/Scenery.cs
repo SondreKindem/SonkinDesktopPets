@@ -11,6 +11,34 @@ public enum Scene
     Beach,
 }
 
+/// <summary>What a spot in the scenery has to offer a passing pet.</summary>
+public enum SightKind
+{
+    /// <summary>A pond or lake to drink from.</summary>
+    Water,
+
+    /// <summary>Hay, fruit or flowers to eat.</summary>
+    Food,
+
+    /// <summary>Somewhere shady to lie down.</summary>
+    Shade,
+
+    /// <summary>A campfire to sit by.</summary>
+    Fire,
+
+    /// <summary>Another animal to say hello to.</summary>
+    Friend,
+
+    /// <summary>The top of something tall, where a cat can sit.</summary>
+    Perch,
+}
+
+/// <summary>A place of interest in a scene, in art pixels: its column, and the row of its top or of the ground under it.</summary>
+public readonly record struct Sight(SightKind Kind, int X, int Y);
+
+/// <summary>A rendered scene: its art pixels as [column, row] with row 0 at the top and null for empty, and what is where in it.</summary>
+public sealed record Landscape(Color?[,] Pixels, IReadOnlyList<Sight> Sights);
+
 /// <summary>
 /// Pixel-art landscapes for the bottom of the screen, generated in code like the pets. A scene
 /// is a strip as wide as the screen whose bottom row is the ground the sheep walk on; whatever
@@ -72,7 +100,10 @@ public static class Scenery
     /// The scene as a grid of art pixels, [column, row] with row 0 at the top; null is empty.
     /// The same <paramref name="seed"/> always gives the same landscape.
     /// </summary>
-    public static Color?[,] Render(Scene scene, int columns, int seed)
+    public static Color?[,] Render(Scene scene, int columns, int seed) => Compose(scene, columns, seed).Pixels;
+
+    /// <summary>Renders the scene and lists the sights in it. The same <paramref name="seed"/> always gives the same landscape.</summary>
+    public static Landscape Compose(Scene scene, int columns, int seed)
     {
         var canvas = new Canvas(Math.Max(columns, 0));
         var rng = new Random(seed);
@@ -84,14 +115,14 @@ public static class Scenery
             case Scene.Beach: Beach(canvas, rng); break;
         }
 
-        return canvas.Pixels;
+        return new Landscape(canvas.Pixels, canvas.Sights);
     }
 
-    /// <summary>The scene drawn <paramref name="width"/> screen pixels wide, each art pixel a block of <paramref name="scale"/>.</summary>
-    internal static Bitmap Build(Scene scene, int width, int scale, int seed)
+    /// <summary>A landscape drawn <paramref name="width"/> screen pixels wide, each art pixel a block of <paramref name="scale"/>.</summary>
+    internal static Bitmap Build(Landscape landscape, int width, int scale)
     {
-        int columns = ColumnsFor(width, scale);
-        var pixels = Render(scene, columns, seed);
+        var pixels = landscape.Pixels;
+        int columns = pixels.GetLength(0);
         var bitmap = new Bitmap(Math.Max(width, 1), Height * scale, PixelFormat.Format32bppPArgb);
         using var g = Graphics.FromImage(bitmap);
         using var brush = new SolidBrush(Color.Black);
@@ -441,6 +472,9 @@ public static class Scenery
                 bool snowy = peak.Height - h < snowDepth;
                 c.Put(x, Height - h, snowy ? (shaded ? snowShade : snow) : shaded ? shade : rock);
             }
+
+            // A snowy summit is a fine place for a cat to sit.
+            if (x == peak.X && snowDepth > 0) c.Mark(SightKind.Perch, x, Height - height);
         }
     }
 
@@ -471,7 +505,8 @@ public static class Scenery
         }
     }
 
-    private static void RoundTree(Canvas c, Random rng, int x, int y, (Color Body, Color Light, Color Dark) leaf, float size = 1f)
+    /// <summary>Returns the row of the top of its crown.</summary>
+    private static int RoundTree(Canvas c, Random rng, int x, int y, (Color Body, Color Light, Color Dark) leaf, float size = 1f)
     {
         int trunk = (int)(rng.Next(4, 8) * size);
         float r = (4f + (float)rng.NextDouble() * 2.5f) * size;
@@ -486,6 +521,7 @@ public static class Scenery
         c.Blob(x - r * 0.7f, top + r * 0.35f, r * 0.75f, r * 0.75f, leaf.Body, leaf.Light, leaf.Dark);
         c.Blob(x + 1 + r * 0.7f, top + r * 0.35f, r * 0.75f, r * 0.75f, leaf.Body, leaf.Light, leaf.Dark);
         c.Blob(x + 0.5f, top, r, r, leaf.Body, leaf.Light, leaf.Dark);
+        return (int)MathF.Ceiling(top - r);
     }
 
     /// <summary>A tall, narrow tree, the sort planted in rows along country roads.</summary>
@@ -688,6 +724,7 @@ public static class Scenery
         }, ('r', roof), ('R', ControlPaint.Light(roof, 0.3f)), ('w', Color.FromArgb(240, 228, 202)), ('s', Color.FromArgb(212, 198, 172)),
             ('b', Color.FromArgb(130, 190, 226)), ('d', Color.FromArgb(120, 80, 50)), ('c', Color.FromArgb(132, 122, 122)));
         Smoke(c, x + (flip ? -1 : 1), y - 11);
+        c.Mark(SightKind.Perch, x, y - 8);
     }
 
     private static void Cabin(Canvas c, Random rng, int x, int y)
@@ -707,6 +744,7 @@ public static class Scenery
         }, ('r', Color.FromArgb(84, 62, 58)), ('l', Color.FromArgb(150, 104, 66)), ('L', Color.FromArgb(124, 84, 54)),
             ('y', Color.FromArgb(252, 216, 110)), ('d', Color.FromArgb(86, 56, 40)), ('c', Color.FromArgb(120, 114, 118)));
         Smoke(c, x + (flip ? -4 : 4), y - 9);
+        c.Mark(SightKind.Perch, x, y - 6);
     }
 
     private static void Windmill(Canvas c, Random rng, int x, int y)
@@ -740,6 +778,7 @@ public static class Scenery
         }
 
         c.Put(x, hubY, cap);
+        c.Mark(SightKind.Perch, x, y - tower - 1);
     }
 
     /// <summary>A stretch of still water set into the slope, with reeds at one end.</summary>
@@ -749,6 +788,7 @@ public static class Scenery
 
     private static void Pool(Canvas c, Random rng, int x, int y, int reach)
     {
+        c.Mark(SightKind.Water, x, y);
         c.Blob(x, y, reach, 2.4f, Water, Water, Water);
         for (int dx = -reach + 2; dx <= reach - 2; dx++) c.Put(x + dx, y - 2, WaterLight);
         for (int i = 0; i < reach / 3; i++)
@@ -776,6 +816,8 @@ public static class Scenery
             int hx = x + (i - 2) * rng.Next(8, 11);
             c.Blob(hx, y + 1, 3.2f, 4.2f, hay, lit, dark);
         }
+
+        c.Mark(SightKind.Food, x, y);
     }
 
     /// <summary>A few fruit trees planted close together.</summary>
@@ -788,6 +830,10 @@ public static class Scenery
             RoundTree(c, rng, tx, y + (i == 0 ? 1 : 0), Leaf);
             for (int k = 0; k < 4; k++) c.Recolour(tx + rng.Next(-5, 7), y - rng.Next(7, 14), apple);
         }
+
+        // Windfalls to eat, and shade to eat them in.
+        c.Mark(SightKind.Food, x - 6, y);
+        c.Mark(SightKind.Shade, x + 6, y);
     }
 
     private static void Grove(Canvas c, Random rng, int x, int y)
@@ -798,13 +844,21 @@ public static class Scenery
             int height = rng.Next(16, 24) - Math.Abs(dx) / 2;
             Pine(c, x + dx, y + 3, height, Color.FromArgb(46, 118, 80), Color.FromArgb(30, 86, 66), BarkDark);
         }
+
+        c.Mark(SightKind.Shade, x, y);
     }
 
-    private static void OldOak(Canvas c, Random rng, int x, int y) => RoundTree(c, rng, x, y, Leaf, size: 2.1f);
+    private static void OldOak(Canvas c, Random rng, int x, int y)
+    {
+        int crown = RoundTree(c, rng, x, y, Leaf, size: 2.1f);
+        c.Mark(SightKind.Shade, x, y);
+        c.Mark(SightKind.Perch, x, crown);
+    }
 
     private static void BirchStand(Canvas c, Random rng, int x, int y)
     {
         foreach (int dx in new[] { -9, 8, -3, 3 }) Birch(c, rng, x + dx, y + rng.Next(0, 2));
+        c.Mark(SightKind.Shade, x, y);
     }
 
     private static void Camp(Canvas c, Random rng, int x, int y)
@@ -831,6 +885,7 @@ public static class Scenery
         c.Put(fx, y - 1, Color.FromArgb(255, 214, 80));
         c.Put(fx, y - 2, Color.FromArgb(246, 130, 40));
         Smoke(c, fx, y - 4);
+        c.Mark(SightKind.Fire, fx, y);
     }
 
     private static void FallenLog(Canvas c, Random rng, int x, int y)
@@ -877,8 +932,11 @@ public static class Scenery
         for (int dx = -1; dx <= 2; dx++) c.Recolour(x + dx, (int)(y - r * 1.3f) + 1, moss);
     }
 
-    private static void Deer(Canvas c, Random rng, int x, int y) => c.Stamp(x, y, rng.Next(2) == 0, new[]
+    private static void Deer(Canvas c, Random rng, int x, int y)
     {
+        c.Mark(SightKind.Friend, x, y);
+        c.Stamp(x, y, rng.Next(2) == 0, new[]
+        {
         "n.n.......",
         ".nn.......",
         "bbb.......",
@@ -889,8 +947,9 @@ public static class Scenery
         ".b.b..b.b.",
         ".b.b..b.b.",
         ".d.d..d.d.",
-    }, ('b', Color.FromArgb(170, 116, 72)), ('B', Color.FromArgb(190, 136, 88)), ('n', Color.FromArgb(120, 86, 58)),
-        ('w', Color.White), ('k', Color.FromArgb(40, 30, 30)), ('d', Color.FromArgb(70, 50, 40)));
+        }, ('b', Color.FromArgb(170, 116, 72)), ('B', Color.FromArgb(190, 136, 88)), ('n', Color.FromArgb(120, 86, 58)),
+            ('w', Color.White), ('k', Color.FromArgb(40, 30, 30)), ('d', Color.FromArgb(70, 50, 40)));
+    }
 
     private static void Fence(Canvas c, Random rng, int x, int y)
     {
@@ -922,6 +981,8 @@ public static class Scenery
             for (int k = 1; k < tall; k++) c.Put(x + dx, y - k, stem);
             c.Put(x + dx, y - tall, Petals[rng.Next(Petals.Length)]);
         }
+
+        c.Mark(SightKind.Food, x, y);
     }
 
     private static void Sailboat(Canvas c, Random rng, int x, int y)
@@ -1001,6 +1062,7 @@ public static class Scenery
         }
 
         c.Put(x, top - 4, red);
+        c.Mark(SightKind.Perch, x, top - 4);
     }
 
     private static void Parasol(Canvas c, Random rng, int x, int y)
@@ -1019,6 +1081,7 @@ public static class Scenery
             "....p...tTtTtT",
         }, ('s', stripe), ('w', Color.White), ('p', Color.FromArgb(200, 200, 206)),
             ('t', Color.FromArgb(90, 200, 206)), ('T', Color.White));
+        c.Mark(SightKind.Shade, x, y);
     }
 
     private static void Sandcastle(Canvas c, Random rng, int x, int y) => c.Stamp(x, y + 1, rng.Next(2) == 0, new[]
@@ -1068,6 +1131,14 @@ public static class Scenery
         public int Width { get; }
 
         public Color?[,] Pixels { get; }
+
+        public List<Sight> Sights { get; } = new();
+
+        /// <summary>Notes a sight for the pets, unless it is off the end of the strip.</summary>
+        public void Mark(SightKind kind, int x, int y)
+        {
+            if (x >= 0 && x < Width) Sights.Add(new Sight(kind, x, Math.Clamp(y, 0, Height - 1)));
+        }
 
         // Row 0 is kept clear so that nothing is ever cut off flat against the top of the strip.
         public void Put(int x, int y, Color colour)

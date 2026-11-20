@@ -51,6 +51,11 @@ Pick a pixel-art landscape under **Scenery** in the tray menu and it is drawn al
 
 The scenery always stays behind your windows, just above the wallpaper, so it only shows where the desktop does. Like the pets it is click-through, but it does cover any desktop icons in the bottom rows. Each screen gets its own stretch of landscape, which stays the same from one day to the next.
 
+The pets make use of what is in the landscape:
+
+- Sheep walk over to **drink** from ponds and lakes, **eat** from haystacks, flower beds and the orchard, **lie down in the shade** of big trees and parasols, **sit by the campfire** and **bleat at the deer**.
+- The cat flies up to **perch** on tall things: the lighthouse, the windmill, cottage and cabin roofs, the old oak and snowy summits. It sits a while, sometimes sings from up there, and bolts if you poke it. It leaves at least 25 seconds between perches.
+
 There is no sound.
 
 ## Running it

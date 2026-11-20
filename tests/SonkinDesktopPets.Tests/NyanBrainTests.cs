@@ -92,10 +92,10 @@ public class NyanBrainTests
         });
 
         // Note collection only happens on request from the host, which this test never makes,
-        // and with no sheep about there are none to visit.
+        // and with no sheep or scenery about there is nothing to visit or sit on.
         var spontaneous = Enum.GetValues<NyanMode>().Except(new[]
         {
-            NyanMode.CollectNote, NyanMode.RemoveNote, NyanMode.VisitSheep, NyanMode.CarrySheep,
+            NyanMode.CollectNote, NyanMode.RemoveNote, NyanMode.VisitSheep, NyanMode.CarrySheep, NyanMode.Perch,
         });
         Assert.Equal(spontaneous.ToHashSet(), modesSeen);
     }

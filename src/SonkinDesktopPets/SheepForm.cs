@@ -12,6 +12,7 @@ internal sealed class SheepForm : PetOverlayForm
     private readonly float _blinkOffset;
     private readonly SolidBrush _grass = new(SheepSprites.Grass);
     private readonly SolidBrush _sparkle = new(SheepSprites.Sparkle);
+    private readonly SolidBrush _water = new(Color.FromArgb(190, 228, 248));
     private Bitmap[] _posesRight = Array.Empty<Bitmap>();
     private Bitmap[] _posesLeft = Array.Empty<Bitmap>();
     private Font? _font;
@@ -130,6 +131,14 @@ internal sealed class SheepForm : PetOverlayForm
 
         switch (_brain.Mode)
         {
+            case SheepMode.Graze when _brain.Errand == SheepErrand.Drink:
+                // Ripples spreading from its nose instead of grass.
+                int spread = 1 + (int)(_brain.ModeTime * 3f) % 3;
+                int nose = SpriteX(sheep, 23);
+                g.FillRectangle(_water, nose - spread * _scale, sheep.Bottom - _scale, (spread * 2 + 1) * _scale, _scale);
+                g.FillRectangle(_water, nose, sheep.Bottom - (1 + spread) * _scale, _scale, _scale);
+                break;
+
             case SheepMode.Graze:
                 // A tuft of grass at its nose that keeps getting nibbled down and growing back.
                 for (int blade = 0; blade < 3; blade++)
@@ -141,7 +150,7 @@ internal sealed class SheepForm : PetOverlayForm
                 break;
 
             case SheepMode.Baa:
-                DrawBubble(g, BubbleRect(sheep, 22), _brain.Smitten ? "Baa ♥" : Bleats[_brain.BaaCount % Bleats.Length], _font!, _scale);
+                DrawBubble(g, BubbleRect(sheep, 22), _brain.Smitten ? "Baa ♥" : _brain.Errand == SheepErrand.Greet ? "Baa?" : Bleats[_brain.BaaCount % Bleats.Length], _font!, _scale);
                 break;
 
             case SheepMode.Startle:
@@ -182,6 +191,7 @@ internal sealed class SheepForm : PetOverlayForm
             foreach (var pose in _posesRight.Concat(_posesLeft)) pose.Dispose();
             _grass.Dispose();
             _sparkle.Dispose();
+            _water.Dispose();
             _font?.Dispose();
         }
 

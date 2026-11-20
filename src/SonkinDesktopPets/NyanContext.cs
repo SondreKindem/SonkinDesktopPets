@@ -53,7 +53,7 @@ internal sealed class NyanContext : ApplicationContext
         _flock = new SheepFlock(_rng, settings.Scale, settings.Background);
         _flock.SetArea(bounds, WorkAreas(bounds));
         _flock.SetCount(settings.SheepCount);
-        _backdrop.Set(settings.Scene, WorkAreas(bounds), settings.Scale);
+        ApplyScene();
         _overlay.Stepped += IntroduceCatAndSheep;
         _brain.SheepSerenaded += spot => NearestSheep(spot)?.HearSong();
 
@@ -95,8 +95,29 @@ internal sealed class NyanContext : ApplicationContext
         ApplyScene();
     }
 
-    private void ApplyScene() =>
+    /// <summary>Puts up the chosen scenery and tells the pets what there is in it for them.</summary>
+    private void ApplyScene()
+    {
         _backdrop.Set(_settings.Scene, WorkAreas(ResolveArea().Bounds), _settings.Scale);
+
+        var sights = _backdrop.Sights;
+        _brain.Perches = sights.Where(sight => sight.Kind == SightKind.Perch).Select(sight => sight.Spot).ToArray();
+        // Sheep keep their feet on the ground: they go to the spot in front of a sight.
+        _flock.Attractions = sights
+            .Where(sight => sight.Kind != SightKind.Perch)
+            .Select(sight => new Attraction(ErrandAt(sight.Kind), new PointF(sight.Spot.X, sight.Ground)))
+            .ToArray();
+    }
+
+    private static SheepErrand ErrandAt(SightKind kind) => kind switch
+    {
+        SightKind.Water => SheepErrand.Drink,
+        SightKind.Food => SheepErrand.Munch,
+        SightKind.Shade => SheepErrand.Rest,
+        SightKind.Fire => SheepErrand.Warm,
+        SightKind.Friend => SheepErrand.Greet,
+        _ => SheepErrand.None,
+    };
 
     /// <summary>The part of each screen inside <paramref name="bounds"/> that the taskbar leaves free.</summary>
     private static Rectangle[] WorkAreas(Rectangle bounds) => Screen.AllScreens

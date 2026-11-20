@@ -19,6 +19,7 @@ public enum NyanMode
     RemoveNote,
     VisitSheep,
     CarrySheep,
+    Perch,
 }
 
 public readonly record struct TrailSegment(PointF Position, float Born, int Index);
@@ -43,6 +44,9 @@ public sealed class NyanBrain
 
     /// <summary>Minimum time between two visits to the sheep.</summary>
     public const float SheepCooldown = 30f;
+
+    /// <summary>Minimum time between two sits on top of the scenery.</summary>
+    public const float PerchCooldown = 25f;
 
     private const float FirstSheepDelay = 10f;
     private const float VisitTimeout = 8f;
@@ -98,6 +102,8 @@ public sealed class NyanBrain
     private float _sheepCooldown = FirstSheepDelay;
     private PointF _sheepSpot;
     private bool _abducting;
+    private float _perchCooldown;
+    private bool _settled;
 
     public NyanBrain(Random rng, Size catSize, Rectangle bounds, IReadOnlyList<Rectangle>? regions = null)
     {
@@ -171,6 +177,15 @@ public sealed class NyanBrain
     /// <summary>Raised with a sheep's spot when the cat stops above it to sing to it.</summary>
     public event Action<PointF>? SheepSerenaded;
 
+    /// <summary>
+    /// Set by the host: the tops of tall things in the scenery (a lighthouse, a summit). Now
+    /// and then the cat flies over to sit on one.
+    /// </summary>
+    public IReadOnlyList<PointF> Perches { get; set; } = Array.Empty<PointF>();
+
+    /// <summary>True while the cat is sitting on a perch, as opposed to flying to it.</summary>
+    public bool Perched => Mode == NyanMode.Perch && _settled;
+
     /// <summary>True while the cat is tearing about fast enough to frighten a sheep it passes.</summary>
     public bool Swooping => Mode is NyanMode.Dash or NyanMode.Wave or NyanMode.Loop or NyanMode.Flee;
 
@@ -199,6 +214,7 @@ public sealed class NyanBrain
         _fleeCooldown = MathF.Max(0, _fleeCooldown - dt);
         _noteCooldown = MathF.Max(0, _noteCooldown - dt);
         _sheepCooldown = MathF.Max(0, _sheepCooldown - dt);
+        _perchCooldown = MathF.Max(0, _perchCooldown - dt);
         CursorGrab = null;
         SheepHold = null;
 
@@ -341,9 +357,26 @@ public sealed class NyanBrain
                 if (MoveToward(_target, CarrySpeed, dt) || _modeTime > CarrySheepDuration) StartHover(1f);
                 else SheepHold = Grip;
                 break;
+
+            case NyanMode.Perch:
+                if (!_settled)
+                {
+                    if (!MoveToward(_target, RoamSpeed, dt)) break;
+                    _settled = true;
+                    _modeTime = 0;
+                }
+                else if (_modeTime >= _hoverFor)
+                {
+                    _perchCooldown = PerchCooldown;
+                    // A good view sometimes calls for a song.
+                    if (_rng.NextDouble() < 0.4) StartSing();
+                    else ChooseNext(cursor);
+                }
+
+                break;
         }
 
-        if (Mode is NyanMode.Roam or NyanMode.Hover && _fleeCooldown <= 0 && CatRect.Contains(cursor))
+        if ((Mode is NyanMode.Roam or NyanMode.Hover || Perched) && _fleeCooldown <= 0 && CatRect.Contains(cursor))
         {
             StartFlee(cursor);
         }
@@ -491,6 +524,24 @@ public sealed class NyanBrain
         _abducting = _rng.Next(2) == 0;
     }
 
+    /// <summary>Flies to one of the perches in its area and sits on it for a while.</summary>
+    private void StartPerch()
+    {
+        var within = Perches.Where(spot => Bounds.Contains(Point.Round(spot))).ToArray();
+        if (within.Length == 0)
+        {
+            StartRoam();
+            return;
+        }
+
+        var perch = within[_rng.Next(within.Length)];
+        Enter(NyanMode.Perch);
+        _settled = false;
+        _hoverFor = 4f + (float)_rng.NextDouble() * 5f;
+        // Sitting on it: the cat's feet just below the top of the thing.
+        _target = ClampInside(new PointF(perch.X, perch.Y - CatSize.Height * 0.4f));
+    }
+
     /// <summary>
     /// Keeps following the sheep the cat set off for as it moves. False once there is no
     /// sheep anywhere near where it last was.
@@ -605,6 +656,10 @@ public sealed class NyanBrain
         {
             StartSheepVisit();
         }
+        else if (roll < 0.97 && Perches.Count > 0 && _perchCooldown <= 0)
+        {
+            StartPerch();
+        }
         else
         {
             StartRoam();
@@ -633,7 +688,7 @@ public sealed class NyanBrain
     private void UpdateStars(float dt)
     {
         _stars.RemoveAll(s => Time - s.Born > StarLife);
-        if (Mode is NyanMode.Hover or NyanMode.Sing or NyanMode.Sprinkle) return;
+        if (Mode is NyanMode.Hover or NyanMode.Sing or NyanMode.Sprinkle || Perched) return;
 
         _starTimer -= dt;
         if (_starTimer > 0) return;

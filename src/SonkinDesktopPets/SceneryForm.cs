@@ -1,6 +1,12 @@
 namespace SonkinDesktopPets;
 
 /// <summary>
+/// A sight in the scenery, placed on the desktop: where it is on screen, and the ground line
+/// of the screen it is on.
+/// </summary>
+internal readonly record struct ScreenSight(SightKind Kind, PointF Spot, int Ground);
+
+/// <summary>
 /// One screen's scenery: a strip along the bottom of its working area, sitting on the taskbar.
 /// It always stays behind every other window, the pets included, whichever layer they are on.
 /// </summary>
@@ -13,10 +19,22 @@ internal sealed class SceneryForm : PetOverlayForm
     public SceneryForm(Scene scene, Rectangle workArea, int scale, int seed)
         : base(background: true, interval: 500)
     {
-        _picture = Scenery.Build(scene, workArea.Width, scale, seed);
+        var landscape = Scenery.Compose(scene, Scenery.ColumnsFor(workArea.Width, scale), seed);
+        _picture = Scenery.Build(landscape, workArea.Width, scale);
         _strip = new Rectangle(workArea.Left, workArea.Bottom - _picture.Height, workArea.Width, _picture.Height);
+        Sights = landscape.Sights
+            .Select(sight => new ScreenSight(
+                sight.Kind,
+                new PointF(_strip.Left + (sight.X + 0.5f) * scale, _strip.Top + sight.Y * scale),
+                _strip.Bottom))
+            // A strip taller than its screen is cut off at the top, and what is up there with it.
+            .Where(sight => sight.Spot.Y >= workArea.Top && sight.Spot.X < workArea.Right)
+            .ToArray();
         SetArea(workArea);
     }
+
+    /// <summary>The landscape's sights, in screen coordinates.</summary>
+    public IReadOnlyList<ScreenSight> Sights { get; }
 
     protected override void Advance(float dt)
     {
@@ -49,6 +67,9 @@ internal sealed class SceneryForm : PetOverlayForm
 internal sealed class Backdrop : IDisposable
 {
     private readonly List<SceneryForm> _strips = new();
+
+    /// <summary>Everything of interest to the pets in the scenery now showing.</summary>
+    public IReadOnlyList<ScreenSight> Sights => _strips.SelectMany(strip => strip.Sights).ToArray();
 
     /// <summary>Replaces the scenery: one strip of <paramref name="scene"/> for each working area.</summary>
     public void Set(Scene scene, Rectangle[] workAreas, int scale)

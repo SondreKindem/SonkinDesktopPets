@@ -17,6 +17,7 @@ internal sealed class SheepFlock : IDisposable
     private Rectangle[] _workAreas = Array.Empty<Rectangle>();
     private IReadOnlyList<Platform> _world = Array.Empty<Platform>();
     private long? _worldScannedAt;
+    private IReadOnlyList<Attraction> _attractions = Array.Empty<Attraction>();
     private int _scale;
     private bool _background;
     private bool _paused;
@@ -38,6 +39,16 @@ internal sealed class SheepFlock : IDisposable
         {
             _background = value;
             foreach (var sheep in _sheep) sheep.Background = value;
+        }
+    }
+
+    /// <summary>What there is in the scenery for the sheep to walk over to.</summary>
+    public IReadOnlyList<Attraction> Attractions
+    {
+        set
+        {
+            _attractions = value;
+            foreach (var sheep in _sheep) sheep.Brain.Attractions = value;
         }
     }
 
@@ -84,7 +95,7 @@ internal sealed class SheepFlock : IDisposable
 
         while (_sheep.Count < count)
         {
-            var brain = new SheepBrain(_rng, SheepSprites.SizeAt(_scale), _bounds, World());
+            var brain = new SheepBrain(_rng, SheepSprites.SizeAt(_scale), _bounds, World()) { Attractions = _attractions };
             var form = new SheepForm(brain, World, _scale, RollCoat(), _background, (float)_rng.NextDouble() * 4f);
             form.SetArea(_bounds);
             _sheep.Add(form);

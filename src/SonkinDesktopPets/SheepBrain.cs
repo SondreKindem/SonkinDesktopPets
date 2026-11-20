@@ -18,6 +18,30 @@ public enum SheepMode
     Carried,
 }
 
+/// <summary>Something a sheep goes out of its way to do at a spot in the scenery.</summary>
+public enum SheepErrand
+{
+    None,
+
+    /// <summary>Drink from a pond.</summary>
+    Drink,
+
+    /// <summary>Eat something better than grass.</summary>
+    Munch,
+
+    /// <summary>Lie down in the shade.</summary>
+    Rest,
+
+    /// <summary>Sit by a fire.</summary>
+    Warm,
+
+    /// <summary>Bleat at another animal.</summary>
+    Greet,
+}
+
+/// <summary>A spot on the ground, in screen coordinates, with something there for a sheep to do.</summary>
+public readonly record struct Attraction(SheepErrand Errand, PointF Spot);
+
 /// <summary>
 /// A sheep's behaviour, in screen coordinates. It lives on <see cref="Platform"/>s: the ground
 /// at the bottom of each screen and the top edges of windows. The host feeds it the current
@@ -34,6 +58,7 @@ public sealed class SheepBrain
     private Platform[] _platforms = Array.Empty<Platform>();
     private Platform? _platform;
     private (long Id, float X)? _jump;
+    private Attraction? _goingTo;
     private float _targetX;
     private float _duration;
     private float _fallSpeed;
@@ -83,6 +108,15 @@ public sealed class SheepBrain
 
     /// <summary>True while the current bleat is an answer to the cat's singing.</summary>
     public bool Smitten { get; private set; }
+
+    /// <summary>
+    /// Set by the host: things on the ground worth walking over to. A sheep on that ground
+    /// visits one now and then.
+    /// </summary>
+    public IReadOnlyList<Attraction> Attractions { get; set; } = Array.Empty<Attraction>();
+
+    /// <summary>What the sheep has come to an attraction to do, while it is doing it.</summary>
+    public SheepErrand Errand { get; private set; }
 
     /// <summary>The top-centre of the sheep: where the cat takes hold of it.</summary>
     public PointF Top => new(Position.X, Position.Y - Size.Height);
@@ -206,6 +240,7 @@ public sealed class SheepBrain
             case SheepMode.Walk:
                 if (!WalkToward(_targetX, WalkSpeed, dt)) break;
                 if (_jump is { } jump) TakeOff(jump.Id, jump.X);
+                else if (_goingTo is { } attraction) Arrive(attraction);
                 else ChooseNext();
                 break;
 
@@ -338,6 +373,8 @@ public sealed class SheepBrain
         double roll = _rng.NextDouble();
         if (here.IsGround)
         {
+            // With scenery about, some of the time it would have grazed or strolled goes on errands.
+            if (roll >= 0.20 && roll < 0.42 && StartErrand(here)) return;
             if (roll < 0.30) StartTimed(SheepMode.Graze, 5f, 12f);
             else if (roll < 0.52) StartWalk();
             else if (roll < 0.66) StartJump();
@@ -360,11 +397,50 @@ public sealed class SheepBrain
         }
     }
 
+    /// <summary>Sets off for one of the attractions on this ground. False if there are none.</summary>
+    private bool StartErrand(Platform here)
+    {
+        var reachable = Attractions
+            .Where(a => MathF.Abs(a.Spot.Y - here.Y) <= 2f && here.Spans(a.Spot.X))
+            .ToArray();
+        if (reachable.Length == 0) return false;
+
+        var choice = reachable[_rng.Next(reachable.Length)];
+        // Shade is for lying in; anything else it stands beside, on the side it comes from.
+        float beside = choice.Errand == SheepErrand.Rest ? 0f : Size.Width * 0.6f;
+        float side = Position.X <= choice.Spot.X ? -1 : 1;
+        var (min, max) = Range(here);
+        Enter(SheepMode.Walk);
+        _targetX = Math.Clamp(choice.Spot.X + side * beside, min, max);
+        _goingTo = choice;
+        return true;
+    }
+
+    /// <summary>Having walked up to an attraction, does what it came for.</summary>
+    private void Arrive(Attraction attraction)
+    {
+        float dx = attraction.Spot.X - Position.X;
+        switch (attraction.Errand)
+        {
+            case SheepErrand.Drink: StartTimed(SheepMode.Graze, 4f, 8f); break;
+            case SheepErrand.Munch: StartTimed(SheepMode.Graze, 6f, 12f); break;
+            case SheepErrand.Rest: StartTimed(SheepMode.Sit, 6f, 12f); break;
+            case SheepErrand.Warm: StartTimed(SheepMode.Sit, 8f, 14f); break;
+            case SheepErrand.Greet: StartBaa(); break;
+            default: ChooseNext(); return;
+        }
+
+        if (MathF.Abs(dx) > 1f) FacingRight = dx > 0;
+        Errand = attraction.Errand;
+    }
+
     private void Enter(SheepMode mode)
     {
         Mode = mode;
         ModeTime = 0;
         _jump = null;
+        _goingTo = null;
+        Errand = SheepErrand.None;
     }
 
     private void StartTimed(SheepMode mode, float minSeconds, float maxSeconds)

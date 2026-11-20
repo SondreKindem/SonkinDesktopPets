@@ -71,7 +71,7 @@ internal static class Program
             g.Clear(Color.FromArgb(0, 51, 102));
             for (int i = 0; i < scenes.Length; i++)
             {
-                using var picture = Scenery.Build(scenes[i], width, scale, seed: i);
+                using var picture = Scenery.Build(Scenery.Compose(scenes[i], Scenery.ColumnsFor(width, scale), seed: i), width, scale);
                 g.DrawImageUnscaled(picture, 0, i * row + 40);
             }
 
